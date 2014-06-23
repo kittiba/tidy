@@ -1,110 +1,71 @@
 #README file
 
-##Assumptions
-These are the list of assumptions I am making for this assignment
-1. I will try to download the zipped file from the URL given
-   in the assignment in the function downloadUnzipFiles() if the zipped file is not already there. I check to see if 
-   the root level directory exists for the zipped content.
-2. I am also making an assumption that other directories underneath exist and previously unzipped
+These are the list of assumptions I am making for this assignment 
 
-# How to run the file
-Basically you need to call 'run_analysis()' without any argument after souring the file.
-It calls a function to download the zipped file.
-
-It then tries to take the training files and combine that with test files for each of the different files it has in the datasets. For example
+1. I will try to download the zipped file from the URL given in the assignment to the 
+current working directory if there is no zipped file already present in the current directory.
+2. I will see if the root level directory exists for the zipped content ('UCI HAR Dataset'). 
+Again here I am assuming that the file was previously unzipped if I find this.
+3. I am also making an assumption that other directories underneath exist and 
+previously unzipped only if the root level directory exists for the data.
 
 
-   
-        #Writing out tidy file
-        write.table(mytidydf, file="tidyInitial.txt", row.names=F, col.names=T)
-        
-        #Trying to make the dataframe narrow using melt - all measurements
-        #are in one column
-        library(reshape2)
-        library(plyr)
-        mymelttidydf<-melt(mytidydf,id.vars=c("SubjectIdentifier","Activity"))
-        
-        #Attempting to order the dataset on SubjectIdentifier, Activity
-        mymelttidyordereddf<-arrange(mymelttidydf, SubjectIdentifier, Activity)
-        
-        #now calculating averages overall activities/for each subject
-        tidydf<-ddply(mymelttidyordereddf, .(SubjectIdentifier,Activity,variable), 
-                  summarize, mean=mean(value))
-        
-        #arranging the calculations into columns as earlier
-        finaltidydf1<-dcast(tidydf, SubjectIdentifier+Activity~variable, value.var="mean")
-        
-        #Putting a suffix as the data columns are now averages of earlier columns 
-        suffixColNames<-names(finaltidydf1)
-        prefix<-"Avg-"
-        newnames<-paste(prefix, suffixColNames,sep="")
-        newnames[1:2]<-c("SubjectIdentifier","Activity") #first two columns need not rename
-        names(finaltidydf1)<-newnames
-        
-        #Writing the final tidy data set
-        write.table(finaltidydf1, file="tidy.txt", row.names=F, col.names=T)
+### How to run the file
 
+Basically you need to call 'run_analysis()' without any argument after running source on the
+file 'run_analysis.R'. 
+
+### What it outputs
+
+It writes a file 'tidy.txt' with 68 columns. The first column identifies the subject. The 
+second column tells what activity the subject was doing. The remaining observations are
+an average of all the observations taken for a given subject/activity.
+
+#### What is the file doing
+
+The main function calls downloadUnzipFiles() which tries to download the zipped files 
+and unzip them.
+
+Next it combines the test/training datasets by calling the function combineDatasets().
+This function returns an initial tidy data frame which is later massaged much further.
+
+##### combineDatasets() function logic
+In the function combineDatasets() it tries to take the training files and combine that with 
+test files for each of the different files it has in the datasets. For example its takes
+all X data from test and training datasets from their respective folders and uses rbind
+to combine into one data frame.
+
+Once the data is combined, it nexts tries to give a header row by reading all column names from
+the features file and later removing all special characters (punctuation) by using gsub()
+
+For the Y data, the same process is followed except the Activity numbers 1-6 are replaced by
+the actual labels. For example 'WALKING' is assigned to 1.
+
+While dealing with subject data files, the numbers 1-30 which are different subjects are 
+replaced by the following naming convention 'Subject-1' for subject 1.
+
+Once the three dataframes are thus formed, they are combined into one dataframe using cbind.
+
+Next the mean and std (standard deviation) columns are determined by examining feature names.
+If the feature name has std() or mean() in them, I am assuming they are the columns of interest.
         
-}
-combineDatasets<-function(){
-        #combining all X data from test and training datasets
-        testXdata<-read.table("UCI HAR Dataset/test/X_test.txt")
-        trainXdata<-read.table("UCI HAR Dataset/train/X_train.txt")
-        allXdata<-rbind(testXdata,trainXdata)
+Once the mean/std columns are extracted and combined, they are used to subset the dataframe from
+earlier. This will only have around 68 columns.      
         
-        #reading feature names from features file and assigning column names
-        #to the X data frame
-        features<-read.table("UCI HAR Dataset/features.txt", stringsAsFactors=FALSE)    
-        colnames(allXdata)<-gsub("[[:punct:]]", "",features[,2])
+
+##### remaining logic
+The main function then writes the intial tidy data frame for any analysis (if needed).
+This is only used for validation that everything looks good. This is however not needed as this
+is not the final tidy data frame.
+
+Next I try to make the dataframe narrow using melt (part of reshape2 library) - all measurements
+are in one column. Then I order the dataset on SubjectIdentifier, Activity. Then I calculate
+the averages of overall activities/for each subject using ddply (plyr library).
+
+Once calculations are done, I use dcast to put the narrow dataframe into a wide data frame
+with all columns back to how they were.
+
+I then change the column names to prefix with Avg- to show the calculations are now averages
+of all the observations for a given subject/activity for each type of observation.  
         
-        #combining all Y data from test and training datasets
-        testydata<-read.table("UCI HAR Dataset/test/y_test.txt")
-        trainydata<-read.table("UCI HAR Dataset/train/y_train.txt")
-        allydata<-rbind(testydata,trainydata)
-        colnames(allydata)<-c("Activity")
-        
-        #reading labels for y data
-        labels<-read.table("UCI HAR Dataset/activity_labels.txt")
-        
-        #assigning activity labels to numbers in y data file
-        allydata[allydata$Activity==1,]<-as.character(labels[1,2])
-        allydata[allydata$Activity==2,]<-as.character(labels[2,2])
-        allydata[allydata$Activity==3,]<-as.character(labels[3,2])
-        allydata[allydata$Activity==4,]<-as.character(labels[4,2])
-        allydata[allydata$Activity==5,]<-as.character(labels[5,2])
-        allydata[allydata$Activity==6,]<-as.character(labels[6,2])
-        allydata$Activity=as.factor(allydata$Activity)
-        
-        #combining all Subject data from test and training datasets
-        testsubjectdata<-read.table("UCI HAR Dataset/test/subject_test.txt")
-        trainsubjectdata<-read.table("UCI HAR Dataset/train/subject_train.txt")
-        
-        allsubjectdata<-rbind(testsubjectdata,trainsubjectdata)
-        colnames(allsubjectdata)<-c("SubjectIdentifier")
-        
-        #giving factor labels to subjects
-        for(i in 1:30){
-                allsubjectdata[allsubjectdata$SubjectIdentifier==i,]<-paste("subject-",i,sep="")
-                i<-i+1
-        }
-        allsubjectdata$SubjectIdentifier=as.factor(allsubjectdata$SubjectIdentifier)
-        
-        #combining all X, Y and subject data in one data frame
-        alldatadf<-cbind(allsubjectdata,allydata, allXdata)
-        
-        #trying to grab the mean and std columns from features 
-        meancolumnsdf<-as.data.frame(features[grepl("mean\\(\\)" ,features[,2]),])
-        stdcolumnsdf<-as.data.frame(features[grepl("std\\(\\)" ,features[,2]),])
-        untidyXcolumns<-as.data.frame(rbind(meancolumnsdf,stdcolumnsdf))
-        
-        #removing special characters to get the columns of interest
-        meanstdcolumns<-gsub("[[:punct:]]", "",untidyXcolumns[,2])
-        
-        #Creating tidy data set with first two columns (subject, activity)
-        #and columns which match mean/std functions
-        tidydf<-as.data.frame(cbind(alldatadf[,1:2],alldatadf[,meanstdcolumns]))
-        
-        #returning a tidy df
-        return(tidydf)
-      
-}
+I finally write the table to a 'tidy.txt' file.
